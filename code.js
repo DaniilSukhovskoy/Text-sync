@@ -11,33 +11,40 @@ function getTextContent(node) {
   // If the node is not a TextNode, return null
   return null;
 }
+//Helper Counter function
+function addCounter(name, counter) {
+  if (counter[name] !== undefined && counter[name] >= 1) {
+    counter[name] = counter[name] + 1;
+    name += ` ${String(counter[name]).padStart(2, '0')}`;
+  } else {
+    counter[name] = 1;
+  }
+  return name;
+}
 
 // Helper function to extract properties
 function extractProperties(instance, properties, counter, blockName, blockId, path = []) {
-  if (instance.type === "TEXT") {
+  if (instance.type === "TEXT" && !instance.locked) {
     let textProp = {};
     let layerName = instance.name;
 
-    if (counter[layerName] !== undefined && counter[layerName] >= 1) {
-      counter[layerName] = counter[layerName] + 1;
-      layerName += ` ${String(counter[layerName]).padStart(2, '0')}`;
-    } else {
-      counter[layerName] = 1;
-    }
+    // Add counter to block name and layer name
+    blockName = addCounter(blockName, counter);
+    layerName = addCounter(layerName, counter);
 
-    textProp["Block_name"] = blockName;
     textProp["Block_id"] = blockId; // The block ID is passed down during recursion
     textProp["layer_id"] = instance.id.split(';').pop(); // Store the instance's ID
-    textProp["layer_name"] = layerName;
-    textProp["figma_text"] = instance.characters;
     textProp["path"] = path; // Store the path to this node
-    textProp["de"] = "de";
-    textProp["fr"] = "fr";
-    textProp["es"] = "es";
-    textProp["it"] = "it";
-    textProp["ja"] = "ja";
-    textProp["ko"] = "ko";
-    textProp["zh-CN"] = "zh-CN";
+    textProp["Block_name"] = blockName;
+    textProp["layer_name"] = layerName;
+    textProp["en"] = instance.characters;
+    textProp["de"] = "";
+    textProp["fr"] = "";
+    textProp["es"] = "";
+    textProp["it"] = "";
+    textProp["ja"] = "";
+    textProp["ko"] = "";
+    textProp["zh-CN"] = "";
     properties.push(textProp);
   }
 
@@ -131,7 +138,7 @@ const html = `
 // Show the plugin's UI
 figma.showUI(html, { width: 400, height: 500 });
 
-async function processBlock(objs, frame) {
+async function processBlock(objs, frame, language) {
   const block_id = objs[0].Block_id;
 
   // Get the instance corresponding to the block_id
@@ -164,7 +171,7 @@ async function processBlock(objs, frame) {
         // Load the font
         await figma.loadFontAsync(child.fontName);
         // Replace the text
-        child.characters = obj.de;
+        child.characters = obj[language];
         console.log(`Finished replacing text, new text: ${child.characters}`);
       } catch (error) {
         console.log(`Error while replacing text: `, error);
@@ -172,6 +179,8 @@ async function processBlock(objs, frame) {
     }
   }
 }
+
+
 
 figma.ui.onmessage = async msg => {
   // Check if the message is of type 'get-properties'
@@ -216,7 +225,7 @@ figma.ui.onmessage = async msg => {
 
     // Log the JSON data
     console.log("Sending the following JSON data:");
-    console.log(postDataJson);
+    console.log(postDataJson.replace(/’/g, "'"));
   }
   // Check if the message is a request to generate translated instances
   else if (msg.type === 'generate') {
@@ -229,39 +238,49 @@ figma.ui.onmessage = async msg => {
       return;
     }
 
-    // Generate new page with current date and time as the name
+    // The set of languages we want to generate translations for
+    const languages = ['de', 'fr', 'es', 'it', 'ja', 'ko', 'zh-CN', 'en'];
+
+    // Create new page with current date and time as the name
     const newPage = figma.createPage();
-    newPage.name = new Date().toLocaleString();
+    newPage.name = `${new Date().toLocaleString()}`;
 
-    // Generate new frame with current date and time as the name
-    const frame = figma.createFrame();
-    frame.name = new Date().toLocaleString();
-    frame.layoutMode = "VERTICAL"; // set layout mode
-    frame.primaryAxisAlignItems = "MIN"
-    frame.counterAxisAlignItems = "CENTER"; // set counter alignment
-    frame.itemSpacing = 0; // set item spacing
-    frame.counterAxisSizingMode = 'AUTO';
-    frame.primaryAxisSizingMode = 'AUTO';
+    let xPos = 0;
 
-    newPage.appendChild(frame); // append frame to the new page
-
-    // Set the starting y position for the first instance
-    let yPos = 0;
-
-    // Group data by block_id
-    let groupedData = [];
-    data.reduce(function (res, value) {
-      if (!res[value.Block_id]) {
-        res[value.Block_id] = [];
-        groupedData.push(res[value.Block_id])
+    for (let language of languages) {
+      // Generate new frame with language as the name
+      const frame = figma.createFrame();
+      frame.name = language;
+      frame.layoutMode = "VERTICAL"; // set layout mode
+      frame.primaryAxisAlignItems = "MIN";
+      frame.counterAxisAlignItems = "CENTER"; // set counter alignment
+      frame.itemSpacing = 0; // set item spacing
+      frame.counterAxisSizingMode = 'AUTO';
+      frame.primaryAxisSizingMode = 'AUTO';
+      frame.x = xPos; // Set the frame's x position
+    
+      newPage.appendChild(frame); // append frame to the new page
+    
+      // Group data by block_id
+      let groupedData = [];
+      data.reduce(function (res, value) {
+        if (!res[value.Block_id]) {
+          res[value.Block_id] = [];
+          groupedData.push(res[value.Block_id])
+        }
+        res[value.Block_id].push(value);
+        return res;
+      }, {});
+    
+      // Loop through the groupedData
+      for (let objs of groupedData) {
+        await processBlock(objs, frame, language);
       }
-      res[value.Block_id].push(value);
-      return res;
-    }, {});
-
-    // Loop through the groupedData
-    for (let objs of groupedData) {
-      await processBlock(objs, frame);
+    
+      // Update xPos for the next frame
+      figma.root.setRelaunchData({relaunch: ''})
+      frame.x = xPos; 
+      xPos += frame.width + 100; // Move the next frame to the right
     }
   }
 };
