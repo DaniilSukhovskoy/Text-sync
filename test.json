@@ -1,0 +1,30 @@
+{
+    "properties": [
+        {
+            "Block_name": "Secondary header block",
+            "layer_id": "I17:15997;15536:140136;15227:129491",
+            "layer_name": "Headline",
+            "figma_text": "test 1",
+            "de": "de",
+            "fr": "fr",
+            "es": "es",
+            "it": "it",
+            "ja": "ja",
+            "ko": "ko",
+            "zh-CN": "zh-CN"
+        },
+        {
+            "Block_name": "Secondary header block",
+            "layer_id": "I17:15997;15536:140136;15227:129492",
+            "layer_name": "Caption",
+            "figma_text": "Test 01",
+            "de": "de",
+            "fr": "fr",
+            "es": "es",
+            "it": "it",
+            "ja": "ja",
+            "ko": "ko",
+            "zh-CN": "zh-CN"
+        }
+    ]
+}
