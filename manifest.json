@@ -1,0 +1,16 @@
+{
+  "name": "Text sync",
+  "id": "1253363177472780498",
+  "api": "1.0.0",
+  "main": "code.js",
+  "capabilities": [],
+  "enableProposedApi": false,
+  "editorType": [
+    "figma"
+  ],
+  "networkAccess": {
+    "allowedDomains": [
+      "belgorod.m207.ru", "https://cdnjs.cloudflare.com"
+    ]
+  }
+}
