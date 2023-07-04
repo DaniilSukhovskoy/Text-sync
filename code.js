@@ -114,23 +114,23 @@ const html = `
 // Show the plugin's UI
 figma.showUI(html, { width: 400, height: 500 });
 
-async function processBlock(objs, xPos, newPage) {
+async function processBlock(objs, yPos, newPage) {
   const block_id = objs[0].Block_id;
 
   // Get the instance corresponding to the block_id
   const instance = figma.getNodeById(block_id);
   if (!instance || instance.type !== 'INSTANCE') {
     console.log(`No instance found or not an instance type for Block_id: ${block_id}`);
-    return xPos;
+    return yPos;
   }
 
   // Create a new instance
   const newInstance = instance.clone();
-  newInstance.x = xPos;
+  newInstance.y = yPos;
   newPage.appendChild(newInstance);
 
-  // Increment the x position for the next instance
-  xPos += newInstance.width + 20;
+  // Increment the y position for the next instance
+  yPos += newInstance.height;
 
   for (let obj of objs) {
     console.log(`Processing object with Block_id: ${obj.Block_id}`);
@@ -159,7 +159,7 @@ async function processBlock(objs, xPos, newPage) {
     }
   }
 
-  return xPos;
+  return yPos;
 }
 
 figma.ui.onmessage = async msg => {
@@ -220,7 +220,7 @@ figma.ui.onmessage = async msg => {
     newPage.name = new Date().toLocaleString();
 
     // Set the starting x position for the first instance
-    let xPos = 0;
+    let yPos = 0;
 
     // Group data by block_id
     let groupedData = [];
@@ -235,7 +235,7 @@ figma.ui.onmessage = async msg => {
 
     // Loop through the groupedData
     for (let objs of groupedData) {
-      xPos = await processBlock(objs, xPos, newPage);
+      yPos = await processBlock(objs, yPos, newPage);
     }
   }
 };
