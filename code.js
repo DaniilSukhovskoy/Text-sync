@@ -52,6 +52,23 @@ function extractProperties(instance, properties, counter, blockName, blockId, pa
   }
 }
 
+// Helper function to find all instances inside a node
+function findAllInstances(node) {
+  let instances = [];
+
+  if ('children' in node) {
+    for (let child of node.children) {
+      if (child.type === "INSTANCE") {
+        instances.push(child);
+      } else {
+        instances = instances.concat(findAllInstances(child));
+      }
+    }
+  }
+
+  return instances;
+}
+
 // Main function
 function getInstanceProperties(instance) {
   console.log("Selected instance: ", instance); // Log the instance structure
@@ -114,23 +131,19 @@ const html = `
 // Show the plugin's UI
 figma.showUI(html, { width: 400, height: 500 });
 
-async function processBlock(objs, yPos, newPage) {
+async function processBlock(objs, frame) {
   const block_id = objs[0].Block_id;
 
   // Get the instance corresponding to the block_id
   const instance = figma.getNodeById(block_id);
   if (!instance || instance.type !== 'INSTANCE') {
     console.log(`No instance found or not an instance type for Block_id: ${block_id}`);
-    return yPos;
+    return;
   }
 
   // Create a new instance
   const newInstance = instance.clone();
-  newInstance.y = yPos;
-  newPage.appendChild(newInstance);
-
-  // Increment the y position for the next instance
-  yPos += newInstance.height;
+  frame.appendChild(newInstance);
 
   for (let obj of objs) {
     console.log(`Processing object with Block_id: ${obj.Block_id}`);
@@ -158,8 +171,6 @@ async function processBlock(objs, yPos, newPage) {
       }
     }
   }
-
-  return yPos;
 }
 
 figma.ui.onmessage = async msg => {
@@ -174,8 +185,11 @@ figma.ui.onmessage = async msg => {
       return;
     }
 
-    // Filter for nodes of type "INSTANCE"
-    let instances = selectedNodes.filter(node => node.type === "INSTANCE");
+    // Find all instances inside each selected node
+    let instances = [];
+    for (let node of selectedNodes) {
+      instances = instances.concat(findAllInstances(node));
+    }
 
     // Check if there are selected instances
     if (instances.length === 0) {
@@ -219,7 +233,19 @@ figma.ui.onmessage = async msg => {
     const newPage = figma.createPage();
     newPage.name = new Date().toLocaleString();
 
-    // Set the starting x position for the first instance
+    // Generate new frame with current date and time as the name
+    const frame = figma.createFrame();
+    frame.name = new Date().toLocaleString();
+    frame.layoutMode = "VERTICAL"; // set layout mode
+    frame.primaryAxisAlignItems = "MIN"
+    frame.counterAxisAlignItems = "CENTER"; // set counter alignment
+    frame.itemSpacing = 0; // set item spacing
+    frame.counterAxisSizingMode = 'AUTO';
+    frame.primaryAxisSizingMode = 'AUTO';
+
+    newPage.appendChild(frame); // append frame to the new page
+
+    // Set the starting y position for the first instance
     let yPos = 0;
 
     // Group data by block_id
@@ -235,7 +261,7 @@ figma.ui.onmessage = async msg => {
 
     // Loop through the groupedData
     for (let objs of groupedData) {
-      yPos = await processBlock(objs, yPos, newPage);
+      await processBlock(objs, frame);
     }
   }
 };
