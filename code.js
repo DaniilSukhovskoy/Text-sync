@@ -11,53 +11,6 @@ function getTextContent(node) {
   // If the node is not a TextNode, return null
   return null;
 }
-//Helper Counter function
-function addCounter(name, counter) {
-  if (counter[name] !== undefined && counter[name] >= 1) {
-    counter[name] = counter[name] + 1;
-    name += ` ${String(counter[name]).padStart(2, '0')}`;
-  } else {
-    counter[name] = 1;
-  }
-  return name;
-}
-
-// Helper function to extract properties
-function extractProperties(instance, properties, counter, blockName, blockId, path = []) {
-  if (instance.type === "TEXT" && !instance.locked) {
-    let textProp = {};
-    let layerName = instance.name;
-
-    // Add counter to block name and layer name
-    blockName = addCounter(blockName, counter);
-    layerName = addCounter(layerName, counter);
-
-    textProp["Block_id"] = blockId; // The block ID is passed down during recursion
-    textProp["layer_id"] = instance.id.split(';').pop(); // Store the instance's ID
-    textProp["path"] = path; // Store the path to this node
-    textProp["Block_name"] = blockName;
-    textProp["layer_name"] = layerName;
-    textProp["en"] = instance.characters;
-    textProp["de"] = "";
-    textProp["fr"] = "";
-    textProp["es"] = "";
-    textProp["it"] = "";
-    textProp["ja"] = "";
-    textProp["ko"] = "";
-    textProp["zh-CN"] = "";
-    properties.push(textProp);
-  }
-
-  if (instance.children && instance.children.length > 0) {
-    for (let i = 0; i < instance.children.length; i++) {
-      let child = instance.children[i];
-      if (child.visible) {
-        // When recursing, append the child's index to the path
-        extractProperties(child, properties, counter, blockName, blockId, [...path, i]);
-      }
-    }
-  }
-}
 
 // Helper function to find all instances inside a node
 function findAllInstances(node) {
@@ -76,20 +29,100 @@ function findAllInstances(node) {
   return instances;
 }
 
+
+//Helper Counter function
+function addCounter(name, counter) {
+  if (counter[name] !== undefined && counter[name] >= 1) {
+    counter[name] = counter[name] + 1;
+    name += ` ${String(counter[name]).padStart(2, '0')}`;
+  } else {
+    counter[name] = 1;
+  }
+  return name;
+}
+
+// Helper Counter function v2
+//This version should now increment the counter only if the name is encountered before with a different block ID.
+//If the name is encountered for the first time or with the same block ID, the counter remains the same.
+function addCounter2(name, blockCounter, blockId) {
+  console.log(`Adding to counter2: ${name}, ${blockId}`);
+  if (blockCounter[name] === undefined) {
+    blockCounter[name] = {
+      blockIds: [blockId],
+      count: 1
+    };
+  } else {
+    if (!blockCounter[name].blockIds.includes(blockId)) {
+      blockCounter[name].blockIds.push(blockId);
+      blockCounter[name].count++;
+    }
+  }
+
+  if (blockCounter[name].count > 1) {
+    name += ` ${String(blockCounter[name].count).padStart(2, '0')}`;
+  }
+
+  console.log(`Counter2 after addition: ${JSON.stringify(blockCounter)}`);
+  return name;
+}
+
+// Helper function to extract properties
+function extractProperties(instance, properties, counter, blockCounter, blockName, blockId, path = []) {
+  console.log(`Entering extractProperties with ${blockName}, ${blockId}`);
+
+  if (instance.type === "TEXT" && !instance.locked) {
+    let textProp = {};
+    let layerName = instance.name;
+
+    layerName = addCounter(layerName, counter);
+
+    textProp["Block_id"] = blockId;
+    textProp["layer_id"] = instance.id.split(';').pop();
+    textProp["path"] = path;
+    textProp["Block_name"] = blockName;
+    textProp["layer_name"] = layerName;
+    textProp["en"] = instance.characters;
+    textProp["de"] = "";
+    textProp["fr"] = "";
+    textProp["es"] = "";
+    textProp["it"] = "";
+    textProp["ja"] = "";
+    textProp["ko"] = "";
+    textProp["zh-CN"] = "";
+    properties.push(textProp);
+  }
+
+  if (instance.children && instance.children.length > 0) {
+    for (let i = 0; i < instance.children.length; i++) {
+      let child = instance.children[i];
+      if (child.visible) {
+        extractProperties(child, properties, counter, blockCounter, blockName, blockId, [...path, i]);
+      }
+    }
+  }
+}
+
+// Initialize blockCounter outside of getInstanceProperties
+let blockCounter = {};
+
+
 // Main function
 function getInstanceProperties(instance) {
-  console.log("Selected instance: ", instance); // Log the instance structure
+  console.log(`Entering getInstanceProperties with instance id: ${instance.id}`);
+
   let properties = [];
   let counter = {};
 
-  // Pass instance name and ID here
-  extractProperties(instance, properties, counter, instance.name, instance.id.split(';').pop());
+  let blockName = instance.name;
+  let blockId = instance.id.split(';').pop();
 
+  blockName = addCounter2(blockName, blockCounter, blockId);
+
+  extractProperties(instance, properties, counter, blockCounter, blockName, blockId);
+
+  console.log(`Leaving getInstanceProperties with properties: ${JSON.stringify(properties)}`);
   return properties;
 }
-
-
-
 
 // Here is the UI html content
 const html = `
@@ -185,6 +218,9 @@ async function processBlock(objs, frame, language) {
 figma.ui.onmessage = async msg => {
   // Check if the message is of type 'get-properties'
   if (msg.type === 'get-properties') {
+    // Reset the counter and blockCounter here
+    blockCounter = {};
+
     // Retrieve the currently selected nodes on the page
     let selectedNodes = currentPage.selection;
 
@@ -225,7 +261,7 @@ figma.ui.onmessage = async msg => {
 
     // Log the JSON data
     console.log("Sending the following JSON data:");
-    console.log(postDataJson.replace(/’/g, "'"));
+    console.log(postDataJson);
   }
   // Check if the message is a request to generate translated instances
   else if (msg.type === 'generate') {
@@ -258,9 +294,9 @@ figma.ui.onmessage = async msg => {
       frame.counterAxisSizingMode = 'AUTO';
       frame.primaryAxisSizingMode = 'AUTO';
       frame.x = xPos; // Set the frame's x position
-    
+
       newPage.appendChild(frame); // append frame to the new page
-    
+
       // Group data by block_id
       let groupedData = [];
       data.reduce(function (res, value) {
@@ -271,15 +307,15 @@ figma.ui.onmessage = async msg => {
         res[value.Block_id].push(value);
         return res;
       }, {});
-    
+
       // Loop through the groupedData
       for (let objs of groupedData) {
         await processBlock(objs, frame, language);
       }
-    
+
       // Update xPos for the next frame
-      figma.root.setRelaunchData({relaunch: ''})
-      frame.x = xPos; 
+      figma.root.setRelaunchData({ relaunch: '' })
+      frame.x = xPos;
       xPos += frame.width + 100; // Move the next frame to the right
     }
   }
