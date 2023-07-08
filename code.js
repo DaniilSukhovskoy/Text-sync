@@ -1,6 +1,48 @@
 // Import necessary objects from the Figma Plugin API
 const { currentPage, closePlugin } = figma;
 
+// Here is the UI html content
+const html = `
+  <!DOCTYPE html>
+  <html>
+    <head>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          padding: 20px;
+        }
+        #properties {
+          margin-top: 20px;
+          white-space: pre-wrap;
+        }
+        #jsonInput {
+          width: 100%;
+          height: 150px;
+        }
+      </style>
+    </head>
+    <body>
+      <button id="getProperties">Get Properties</button>
+      <div id="properties"></div>
+      <script>
+        document.getElementById('getProperties').onclick = function() {
+          parent.postMessage({pluginMessage: {type: 'get-properties'}}, '*');
+        };
+        window.onmessage = function(event) {
+          if (event.data.pluginMessage.type === 'properties') {
+            document.getElementById('properties').textContent = JSON.stringify(event.data.pluginMessage.data, null, 2);
+          } else if (event.data.pluginMessage.type === 'error') {
+            document.getElementById('properties').textContent = event.data.pluginMessage.message;
+          }
+        };
+      </script>
+    </body>
+  </html>
+`;
+
+// Show the plugin's UI
+figma.showUI(html, { width: 400, height: 500 });
+
 // Function to retrieve the content of text nodes
 function getTextContent(node) {
   // Check if the node is a TextNode
@@ -81,14 +123,6 @@ function extractProperties(instance, properties, counter, blockCounter, blockNam
     textProp["path"] = path;
     textProp["Block_name"] = blockName;
     textProp["layer_name"] = layerName;
-    textProp["en"] = instance.characters;
-    textProp["de"] = "";
-    textProp["fr"] = "";
-    textProp["es"] = "";
-    textProp["it"] = "";
-    textProp["ja"] = "";
-    textProp["ko"] = "";
-    textProp["zh-CN"] = "";
     properties.push(textProp);
   }
 
@@ -107,7 +141,7 @@ let blockCounter = {};
 
 
 // Main function
-function getInstanceProperties(instance) {
+function getInstanceProperties(instance, languageFrames) {
   console.log(`Entering getInstanceProperties with instance id: ${instance.id}`);
 
   let properties = [];
@@ -120,56 +154,14 @@ function getInstanceProperties(instance) {
 
   extractProperties(instance, properties, counter, blockCounter, blockName, blockId);
 
+  // Include the frame id for each language in the properties
+  for (let property of properties) {
+    property.languageFrames = languageFrames;
+  }
+
   console.log(`Leaving getInstanceProperties with properties: ${JSON.stringify(properties)}`);
   return properties;
 }
-
-// Here is the UI html content
-const html = `
-  <!DOCTYPE html>
-  <html>
-    <head>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          padding: 20px;
-        }
-        #properties {
-          margin-top: 20px;
-          white-space: pre-wrap;
-        }
-        #jsonInput {
-          width: 100%;
-          height: 150px;
-        }
-      </style>
-    </head>
-    <body>
-      <button id="getProperties">Get Properties</button>
-      <textarea id="jsonInput" placeholder="Paste the JSON with translations here..."></textarea>
-      <button id="generate">Generate</button>
-      <div id="properties"></div>
-      <script>
-        document.getElementById('getProperties').onclick = function() {
-          parent.postMessage({pluginMessage: {type: 'get-properties'}}, '*');
-        };
-        document.getElementById('generate').onclick = function() {
-          parent.postMessage({pluginMessage: {type: 'generate', json: document.getElementById('jsonInput').value}}, '*');
-        };
-        window.onmessage = function(event) {
-          if (event.data.pluginMessage.type === 'properties') {
-            document.getElementById('properties').textContent = JSON.stringify(event.data.pluginMessage.data, null, 2);
-          } else if (event.data.pluginMessage.type === 'error') {
-            document.getElementById('properties').textContent = event.data.pluginMessage.message;
-          }
-        };
-      </script>
-    </body>
-  </html>
-`;
-
-// Show the plugin's UI
-figma.showUI(html, { width: 400, height: 500 });
 
 async function processBlock(objs, frame, language) {
   const block_id = objs[0].Block_id;
@@ -213,6 +205,47 @@ async function processBlock(objs, frame, language) {
   }
 }
 
+function cloneInstances(instances) {
+  // The set of languages we want to generate translations for
+  const languages = ['en', 'de', 'fr', 'es', 'it', 'ja', 'ko', 'zh-CN'];
+
+  // Create new page with current date and time as the name
+  const newPage = figma.createPage();
+  newPage.name = `${new Date().toLocaleString()}`;
+
+  let xPos = 0;
+  let languageFrames = {};
+
+  for (let language of languages) {
+    // Generate new frame with language as the name
+    const frame = figma.createFrame();
+    frame.name = language;
+    frame.layoutMode = "VERTICAL"; // set layout mode
+    frame.primaryAxisAlignItems = "MIN";
+    frame.counterAxisAlignItems = "CENTER"; // set counter alignment
+    frame.itemSpacing = 0; // set item spacing
+    frame.counterAxisSizingMode = 'AUTO';
+    frame.primaryAxisSizingMode = 'AUTO';
+    frame.x = xPos; // Set the frame's x position
+
+    newPage.appendChild(frame); // append frame to the new page
+
+    // Clone instances into the frame
+    for (let instance of instances) {
+      const newInstance = instance.clone();
+      frame.appendChild(newInstance);
+    }
+
+    // Store the frame id
+    languageFrames[language] = frame.id;
+
+    // Update xPos for the next frame
+    xPos += frame.width + 100; // Move the next frame to the right
+  }
+
+  // Return the id's of the frames for each language
+  return languageFrames;
+}
 
 
 figma.ui.onmessage = async msg => {
@@ -242,11 +275,14 @@ figma.ui.onmessage = async msg => {
       return;
     }
 
-    // Retrieve the properties of these instances
-    let properties = instances.map(getInstanceProperties);
+    // Clone the instances for each language and get the frame id's
+    let languageFrames = cloneInstances(instances);
 
-    // Send the properties back to the UI
-    figma.ui.postMessage({ type: 'properties', data: properties });
+    // Retrieve the properties of these instances
+    let properties = instances.map(instance => getInstanceProperties(instance, languageFrames));
+
+    // Send the properties and frame id's back to the UI
+    figma.ui.postMessage({ type: 'properties', data: properties, languageFrames: languageFrames });
 
     // Flatten the array of properties
     let flattenedProperties = [].concat(...properties);
@@ -263,61 +299,4 @@ figma.ui.onmessage = async msg => {
     console.log("Sending the following JSON data:");
     console.log(postDataJson);
   }
-  // Check if the message is a request to generate translated instances
-  else if (msg.type === 'generate') {
-    // Validate JSON input
-    let data;
-    try {
-      data = JSON.parse(msg.json);
-    } catch (error) {
-      figma.notify('Invalid JSON');
-      return;
-    }
-
-    // The set of languages we want to generate translations for
-    const languages = ['de', 'fr', 'es', 'it', 'ja', 'ko', 'zh-CN', 'en'];
-
-    // Create new page with current date and time as the name
-    const newPage = figma.createPage();
-    newPage.name = `${new Date().toLocaleString()}`;
-
-    let xPos = 0;
-
-    for (let language of languages) {
-      // Generate new frame with language as the name
-      const frame = figma.createFrame();
-      frame.name = language;
-      frame.layoutMode = "VERTICAL"; // set layout mode
-      frame.primaryAxisAlignItems = "MIN";
-      frame.counterAxisAlignItems = "CENTER"; // set counter alignment
-      frame.itemSpacing = 0; // set item spacing
-      frame.counterAxisSizingMode = 'AUTO';
-      frame.primaryAxisSizingMode = 'AUTO';
-      frame.x = xPos; // Set the frame's x position
-
-      newPage.appendChild(frame); // append frame to the new page
-
-      // Group data by block_id
-      let groupedData = [];
-      data.reduce(function (res, value) {
-        if (!res[value.Block_id]) {
-          res[value.Block_id] = [];
-          groupedData.push(res[value.Block_id])
-        }
-        res[value.Block_id].push(value);
-        return res;
-      }, {});
-
-      // Loop through the groupedData
-      for (let objs of groupedData) {
-        await processBlock(objs, frame, language);
-      }
-
-      // Update xPos for the next frame
-      figma.root.setRelaunchData({ relaunch: '' })
-      frame.x = xPos;
-      xPos += frame.width + 100; // Move the next frame to the right
-    }
-  }
 };
-

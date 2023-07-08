@@ -1,30 +1,90 @@
-{
-    "properties": [
-        {
-            "Block_name": "Secondary header block",
-            "layer_id": "I17:15997;15536:140136;15227:129491",
-            "layer_name": "Headline",
-            "figma_text": "test 1",
-            "de": "de",
-            "fr": "fr",
-            "es": "es",
-            "it": "it",
-            "ja": "ja",
-            "ko": "ko",
-            "zh-CN": "zh-CN"
-        },
-        {
-            "Block_name": "Secondary header block",
-            "layer_id": "I17:15997;15536:140136;15227:129492",
-            "layer_name": "Caption",
-            "figma_text": "Test 01",
-            "de": "de",
-            "fr": "fr",
-            "es": "es",
-            "it": "it",
-            "ja": "ja",
-            "ko": "ko",
-            "zh-CN": "zh-CN"
+[
+    {
+        "Block_id": "77:32816",
+        "layer_id": "15227:129491",
+        "path": [
+            0,
+            0,
+            0
+        ],
+        "Block_name": "Secondary header block",
+        "layer_name": "Headline",
+        "lang": "en",
+        "languageFrames": {
+            "en": "103:18227",
+            "de": "103:18256",
+            "fr": "103:18285",
+            "es": "103:18314",
+            "it": "103:18343",
+            "ja": "103:18372",
+            "ko": "103:18401",
+            "zh-CN": "103:18430"
         }
-    ]
-}
+    },
+    {
+        "Block_id": "77:32816",
+        "layer_id": "15227:129492",
+        "path": [
+            0,
+            0,
+            1
+        ],
+        "Block_name": "Secondary header block",
+        "layer_name": "Caption",
+        "lang": "en",
+        "languageFrames": {
+            "en": "103:18227",
+            "de": "103:18256",
+            "fr": "103:18285",
+            "es": "103:18314",
+            "it": "103:18343",
+            "ja": "103:18372",
+            "ko": "103:18401",
+            "zh-CN": "103:18430"
+        }
+    },
+    {
+        "Block_id": "98:16197",
+        "layer_id": "15227:129491",
+        "path": [
+            0,
+            0,
+            0
+        ],
+        "Block_name": "Secondary header block 02",
+        "layer_name": "Headline",
+        "lang": "en",
+        "languageFrames": {
+            "en": "103:18227",
+            "de": "103:18256",
+            "fr": "103:18285",
+            "es": "103:18314",
+            "it": "103:18343",
+            "ja": "103:18372",
+            "ko": "103:18401",
+            "zh-CN": "103:18430"
+        }
+    },
+    {
+        "Block_id": "98:16197",
+        "layer_id": "15227:129492",
+        "path": [
+            0,
+            0,
+            1
+        ],
+        "Block_name": "Secondary header block 02",
+        "layer_name": "Caption",
+        "lang": "en",
+        "languageFrames": {
+            "en": "103:18227",
+            "de": "103:18256",
+            "fr": "103:18285",
+            "es": "103:18314",
+            "it": "103:18343",
+            "ja": "103:18372",
+            "ko": "103:18401",
+            "zh-CN": "103:18430"
+        }
+    }
+]
