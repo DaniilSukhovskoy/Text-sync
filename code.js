@@ -25,16 +25,21 @@ const html = `
       <button id="getProperties">Get Properties</button>
       <div id="properties"></div>
       <script>
-        document.getElementById('getProperties').onclick = function() {
-          parent.postMessage({pluginMessage: {type: 'get-properties'}}, '*');
-        };
-        window.onmessage = function(event) {
-          if (event.data.pluginMessage.type === 'properties') {
-            document.getElementById('properties').textContent = JSON.stringify(event.data.pluginMessage.data, null, 2);
-          } else if (event.data.pluginMessage.type === 'error') {
-            document.getElementById('properties').textContent = event.data.pluginMessage.message;
+        const getPropertiesButton = document.getElementById('getProperties');
+        const propertiesDiv = document.getElementById('properties');
+
+        getPropertiesButton.addEventListener('click', () => {
+          parent.postMessage({ pluginMessage: { type: 'get-properties' } }, '*');
+        });
+
+        window.addEventListener('message', event => {
+          const { pluginMessage } = event.data;
+          if (pluginMessage.type === 'properties') {
+            propertiesDiv.textContent = JSON.stringify(pluginMessage.data, null, 2);
+          } else if (pluginMessage.type === 'error') {
+            propertiesDiv.textContent = pluginMessage.message;
           }
-        };
+        });
       </script>
     </body>
   </html>
@@ -42,6 +47,9 @@ const html = `
 
 // Show the plugin's UI
 figma.showUI(html, { width: 400, height: 500 });
+
+//languages
+let languages = ["en", "de", "fr", "es", "it", "ja", "ko", "zh-CN"];
 
 // Function to retrieve the content of text nodes
 function getTextContent(node) {
@@ -135,6 +143,28 @@ function extractProperties(instance, properties, counter, blockCounter, blockNam
     }
   }
 }
+
+// Desired output
+// if (instance.type === "TEXT" && !instance.locked) {
+//   let textProp = {};
+//   let layerName = instance.name;
+
+//   layerName = addCounter(layerName, counter);
+
+//   textProp["Block_name"] = blockName;
+//   textProp["Layer_name"] = layerName;
+//   textProp["path"] = path;
+//   textProp["Translations"] = textProp["Translations"] || [];
+
+//   textProp["Translations"].push({
+//     "Lang": language,
+//     "Text": instance.characters,
+//     "Layer_id": instance.id.split(';').pop(),
+//     "Frame_id": instance.parent.id.split(';').pop()
+//   });
+
+//   properties.push(textProp);
+// }
 
 // Initialize blockCounter outside of getInstanceProperties
 let blockCounter = {};
