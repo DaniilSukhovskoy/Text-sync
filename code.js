@@ -184,13 +184,30 @@ function getInstanceProperties(instance, languageFrames) {
 
   extractProperties(instance, properties, counter, blockCounter, blockName, blockId);
 
+  let propertyGroups = groupPropertiesByBlockId(properties);
+
   // Include the frame id for each language in the properties
-  for (let property of properties) {
-    property.languageFrames = languageFrames;
+  for (let blockName in propertyGroups) {
+    let translations = languages.map(language => ({
+      "Lang": language,
+      "Block_id": languageFrames[language]
+    }));
+    propertyGroups[blockName].forEach(property => property.Translations = translations);
   }
 
   console.log(`Leaving getInstanceProperties with properties: ${JSON.stringify(properties)}`);
   return properties;
+}
+
+function groupPropertiesByBlockId(properties) {
+  let groups = {};
+  properties.forEach(prop => {
+    if (!groups[prop.Block_name]) {
+      groups[prop.Block_name] = [];
+    }
+    groups[prop.Block_name].push(prop);
+  });
+  return groups;
 }
 
 async function processBlock(objs, frame, language) {
