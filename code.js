@@ -131,6 +131,7 @@ function extractProperties(instance, properties, counter, blockCounter, blockNam
     textProp["path"] = path;
     textProp["Block_name"] = blockName;
     textProp["layer_name"] = layerName;
+    textProp["content"] = getTextContent(instance); // Adding this line
     properties.push(textProp);
   }
 
@@ -143,28 +144,6 @@ function extractProperties(instance, properties, counter, blockCounter, blockNam
     }
   }
 }
-
-// Desired output
-// if (instance.type === "TEXT" && !instance.locked) {
-//   let textProp = {};
-//   let layerName = instance.name;
-
-//   layerName = addCounter(layerName, counter);
-
-//   textProp["Block_name"] = blockName;
-//   textProp["Layer_name"] = layerName;
-//   textProp["path"] = path;
-//   textProp["Translations"] = textProp["Translations"] || [];
-
-//   textProp["Translations"].push({
-//     "Lang": language,
-//     "Text": instance.characters,
-//     "Layer_id": instance.id.split(';').pop(),
-//     "Frame_id": instance.parent.id.split(';').pop()
-//   });
-
-//   properties.push(textProp);
-// }
 
 // Initialize blockCounter outside of getInstanceProperties
 let blockCounter = {};
