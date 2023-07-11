@@ -172,7 +172,7 @@ let blockCounter = {};
 
 
 // Main function
-function getInstanceProperties(instance, languageFrames) {
+function getInstanceProperties(instance, {languageFrames, clonedInstances}) {
   console.log(`Entering getInstanceProperties with instance id: ${instance.id}`);
 
   let properties = [];
@@ -191,7 +191,7 @@ function getInstanceProperties(instance, languageFrames) {
   for (let blockName in propertyGroups) {
     let translations = languages.map(language => ({
       "Lang": language,
-      "Block_id": languageFrames[language],
+      "Block_id": clonedInstances[instance.id][language],
       "content": "" // add an empty content field for not ready translations
     }));
     propertyGroups[blockName].forEach(property => property.Translations = translations);
@@ -265,6 +265,9 @@ function cloneInstances(instances) {
   let xPos = 0;
   let languageFrames = {};
 
+  // Initialize an object to store the IDs of the cloned instances for each language
+  let clonedInstances = {};
+
   for (let language of languages) {
     // Generate new frame with language as the name
     const frame = figma.createFrame();
@@ -283,6 +286,12 @@ function cloneInstances(instances) {
     for (let instance of instances) {
       const newInstance = instance.clone();
       frame.appendChild(newInstance);
+
+      // Add the ID of the new instance to the clonedInstances object
+      if (!clonedInstances[instance.id]) {
+        clonedInstances[instance.id] = {};
+      }
+      clonedInstances[instance.id][language] = newInstance.id;
     }
 
     // Store the frame id
@@ -293,7 +302,7 @@ function cloneInstances(instances) {
   }
 
   // Return the id's of the frames for each language
-  return languageFrames;
+  return {languageFrames, clonedInstances};
 }
 
 //stage 2
@@ -392,9 +401,11 @@ figma.ui.onmessage = async msg => {
     }
 
     // Recalculate languageFrames if necessary
-    languageFrames = languageFrames || cloneInstances(instances);
+    if (!languageFrames) {
+      ({languageFrames, clonedInstances} = cloneInstances(instances));
+    }
 
-    let properties = instances.map(instance => getInstanceProperties(instance, languageFrames));
+    let properties = instances.map(instance => getInstanceProperties(instance, {languageFrames, clonedInstances}));
 
     console.log(`Properties: ${JSON.stringify(properties, null, 2)}`); // Debug message
 
