@@ -169,7 +169,8 @@ function getInstanceProperties(instance, languageFrames) {
   for (let blockName in propertyGroups) {
     let translations = languages.map(language => ({
       "Lang": language,
-      "Block_id": languageFrames[language]
+      "Block_id": languageFrames[language],
+      "content": "" // add an empty content field for not ready translations
     }));
     propertyGroups[blockName].forEach(property => property.Translations = translations);
   }
