@@ -3,46 +3,68 @@ const { currentPage, closePlugin } = figma;
 
 // Here is the UI html content
 const html = `
-  <!DOCTYPE html>
-  <html>
-    <head>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          padding: 20px;
-        }
-        #properties {
-          margin-top: 20px;
-          white-space: pre-wrap;
-        }
-        #jsonInput {
-          width: 100%;
-          height: 150px;
-        }
-      </style>
-    </head>
-    <body>
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+      }
+      #properties {
+        margin-top: 20px;
+        white-space: pre-wrap;
+      }
+      #jsonInput {
+        width: 100%;
+        height: 150px;
+      }
+      #buttons {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="buttons">
       <button id="getProperties">Get Properties</button>
-      <div id="properties"></div>
-      <script>
-        const getPropertiesButton = document.getElementById('getProperties');
-        const propertiesDiv = document.getElementById('properties');
+      <button id="updateFromFigma">Update from Figma</button>
+      <button id="updateFromInput">Update from Input</button>
+    </div>
+    <textarea id="jsonInput"></textarea>
+    <div id="properties"></div>
+    <script>
+      const getPropertiesButton = document.getElementById('getProperties');
+      const updateFromFigmaButton = document.getElementById('updateFromFigma');
+      const updateFromInputButton = document.getElementById('updateFromInput');
+      const jsonInput = document.getElementById('jsonInput');
+      const propertiesDiv = document.getElementById('properties');
 
-        getPropertiesButton.addEventListener('click', () => {
-          parent.postMessage({ pluginMessage: { type: 'get-properties' } }, '*');
-        });
+      getPropertiesButton.addEventListener('click', () => {
+        parent.postMessage({ pluginMessage: { type: 'get-properties' } }, '*');
+      });
 
-        window.addEventListener('message', event => {
-          const { pluginMessage } = event.data;
-          if (pluginMessage.type === 'properties') {
-            propertiesDiv.textContent = JSON.stringify(pluginMessage.data, null, 2);
-          } else if (pluginMessage.type === 'error') {
-            propertiesDiv.textContent = pluginMessage.message;
-          }
-        });
-      </script>
-    </body>
-  </html>
+      updateFromFigmaButton.addEventListener('click', () => {
+        parent.postMessage({ pluginMessage: { type: 'update-from-figma' } }, '*');
+      });
+
+      updateFromInputButton.addEventListener('click', () => {
+        const inputData = JSON.parse(jsonInput.value);
+        parent.postMessage({ pluginMessage: { type: 'update-from-input', data: inputData } }, '*');
+      });
+
+      window.addEventListener('message', event => {
+        const { pluginMessage } = event.data;
+        if (pluginMessage.type === 'properties') {
+          propertiesDiv.textContent = JSON.stringify(pluginMessage.data, null, 2);
+        } else if (pluginMessage.type === 'error') {
+          propertiesDiv.textContent = pluginMessage.message;
+        }
+      });
+    </script>
+  </body>
+</html>
 `;
 
 // Show the plugin's UI
@@ -274,10 +296,118 @@ function cloneInstances(instances) {
   return languageFrames;
 }
 
+//stage 2
+async function updateFromFigma(properties) {
+  try {
+    // Check if properties is not null or undefined before using it
+    if (!properties) {
+      console.error('Properties is undefined or null');
+      return;
+    }
+
+    // Iterate over all properties
+    for (let prop of properties) {
+      console.log(`Processing property: ${prop.layer_name}`); // Debug message
+      // For each property, iterate over all translations
+      for (let translation of prop.Translations) {
+        console.log(`Processing translation: ${translation.Lang}`); // Debug message
+        // Get the corresponding frame for this translation's language
+        let frameId = translation.Block_id;
+        let frame = figma.getNodeById(frameId);
+
+        if (frame) {
+          console.log(`Found frame: ${frameId}`); // Debug message
+          // Retrieve the text node at the given path
+          let textNode = getTextNodeAtPath(frame, prop.path);
+          if (textNode) {
+            console.log(`Found text node at path: ${prop.path}`); // Debug message
+            // If a text node was found, load its font and update the translation's content
+            await figma.loadFontAsync(textNode.fontName);
+            translation.content = textNode.characters;
+            console.log(`Updated content: ${translation.content}`); // Debug message
+          } else {
+            console.log(`No text node found at path: ${prop.path}`); // Debug message
+          }
+        } else {
+          console.log(`No frame found with ID: ${frameId}`); // Debug message
+        }
+      }
+    }
+  } catch (error) {
+    console.error(`Failed to update from Figma: ${error.message}`);
+  }
+
+  // Send the updated properties back to the UI
+  figma.ui.postMessage({ type: 'properties', data: properties });
+}
+
+function getTextNodeAtPath(node, path) {
+  let child = node;
+  for (let index of path) {
+    console.log(`Current child: ${JSON.stringify(child.name)}`); // Debug message
+    if (child.children && child.children.length > index) {
+      child = child.children[index];
+    } else {
+      console.log('Path leads to non-existing child'); // Debug message
+      return null;
+    }
+  }
+
+  console.log(`Final child: ${JSON.stringify(child.name)}`); // Debug message
+  if (child.type === "TEXT") {
+    return child;
+  }
+
+  console.log('Final child is not a text node'); // Debug message
+  return null;
+}
+
+//
+// Define languageFrames in higher scope
+let languageFrames = null;
+
 
 figma.ui.onmessage = async msg => {
-  // Check if the message is of type 'get-properties'
-  if (msg.type === 'get-properties') {
+  if (msg.type === 'update-from-figma') {
+    console.log('Received update-from-figma message'); // Debug message
+    // Retrieve the currently selected nodes on the page
+    let selectedNodes = currentPage.selection;
+
+    // Check if there are selected nodes
+    if (selectedNodes.length === 0) {
+      figma.ui.postMessage({ type: 'error', message: 'No nodes selected.' });
+      return;
+    }
+
+    // Find all instances inside each selected node
+    let instances = [];
+    for (let node of selectedNodes) {
+      instances = instances.concat(findAllInstances(node));
+    }
+
+    // Check if there are selected instances
+    if (instances.length === 0) {
+      figma.ui.postMessage({ type: 'error', message: 'No instances selected.' });
+      return;
+    }
+
+    // Recalculate languageFrames if necessary
+    languageFrames = languageFrames || cloneInstances(instances);
+
+    let properties = instances.map(instance => getInstanceProperties(instance, languageFrames));
+
+    console.log(`Properties: ${JSON.stringify(properties, null, 2)}`); // Debug message
+
+    // This is where you make the change
+    let flattenedProperties = properties.flat();
+    try {
+      // Update properties from Figma
+      await updateFromFigma(flattenedProperties);
+    } catch (error) {
+      console.error(`Failed to handle 'update-from-figma' message: ${error.message}`);
+    }
+
+  } else if (msg.type === 'get-properties') {
     // Reset the counter and blockCounter here
     blockCounter = {};
 
@@ -303,7 +433,7 @@ figma.ui.onmessage = async msg => {
     }
 
     // Clone the instances for each language and get the frame id's
-    let languageFrames = cloneInstances(instances);
+    languageFrames = cloneInstances(instances);
 
     // Retrieve the properties of these instances
     let properties = instances.map(instance => getInstanceProperties(instance, languageFrames));
@@ -311,8 +441,14 @@ figma.ui.onmessage = async msg => {
     // Send the properties and frame id's back to the UI
     figma.ui.postMessage({ type: 'properties', data: properties, languageFrames: languageFrames });
 
-    // Flatten the array of properties
-    let flattenedProperties = [].concat(...properties);
+    // This is where you make the second change
+    let flattenedProperties = properties.flat();
+    try {
+      // Update properties from Figma
+      await updateFromFigma(flattenedProperties);
+    } catch (error) {
+      console.error(`Failed to handle 'get-properties' message: ${error.message}`);
+    }
 
     // Prepare the data for the POST request
     const postData = {
