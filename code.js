@@ -255,12 +255,10 @@ async function processBlock(objs, frame, language) {
 }
 
 function cloneInstances(instances) {
-  // The set of languages we want to generate translations for
-  const languages = ['en', 'de', 'fr', 'es', 'it', 'ja', 'ko', 'zh-CN'];
 
   // Create new page with current date and time as the name
   const newPage = figma.createPage();
-  newPage.name = `${new Date().toLocaleString()}`;
+  newPage.name = `translations`;
 
   let xPos = 0;
   let languageFrames = {};
@@ -378,7 +376,6 @@ let languageFrames = null;
 
 figma.ui.onmessage = async msg => {
   if (msg.type === 'update-from-figma') {
-    console.log('Received update-from-figma message'); // Debug message
     // Retrieve the currently selected nodes on the page
     let selectedNodes = currentPage.selection;
 
@@ -393,6 +390,7 @@ figma.ui.onmessage = async msg => {
     for (let node of selectedNodes) {
       instances = instances.concat(findAllInstances(node));
     }
+    console.log(`Found ${instances.length} instances`); // Debug message
 
     // Check if there are selected instances
     if (instances.length === 0) {
@@ -400,10 +398,10 @@ figma.ui.onmessage = async msg => {
       return;
     }
 
-    // Recalculate languageFrames if necessary
-    if (!languageFrames) {
-      ({languageFrames, clonedInstances} = cloneInstances(instances));
-    }
+    // // Recalculate languageFrames if necessary
+    // if (!languageFrames) {
+    //   ({languageFrames, clonedInstances} = cloneInstances(instances));
+    // }
 
     let properties = instances.map(instance => getInstanceProperties(instance, {languageFrames, clonedInstances}));
 
