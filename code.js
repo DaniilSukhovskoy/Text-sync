@@ -153,7 +153,7 @@ function extractProperties(instance, properties, counter, blockCounter, blockNam
     textProp["path"] = path;
     textProp["Block_name"] = blockName;
     textProp["layer_name"] = layerName;
-    textProp["content"] = getTextContent(instance); // Adding this line
+    textProp["content"] = ''; // Adding this line
     properties.push(textProp);
   }
 
@@ -374,101 +374,91 @@ function getTextNodeAtPath(node, path) {
 let languageFrames = null;
 
 
+// Define the method to handle selected nodes and instances
+const handleSelectedNodesAndInstances = async (messageType) => {
+  // Retrieve the currently selected nodes on the page
+  let selectedNodes = currentPage.selection;
+
+  // Check if there are selected nodes
+  if (selectedNodes.length === 0) {
+    figma.ui.postMessage({ type: 'error', message: 'No nodes selected.' });
+    return;
+  }
+
+  // Find all instances inside each selected node
+  let instances = [];
+  for (let node of selectedNodes) {
+    instances = instances.concat(findAllInstances(node));
+  }
+
+  // Check if there are selected instances
+  if (instances.length === 0) {
+    figma.ui.postMessage({ type: 'error', message: 'No instances selected.' });
+    return;
+  }
+
+  return instances;
+}
+
 figma.ui.onmessage = async msg => {
-  if (msg.type === 'update-from-figma') {
-    // Retrieve the currently selected nodes on the page
-    let selectedNodes = currentPage.selection;
+  switch(msg.type) {
+    case 'update-from-figma': {
+      let instances = await handleSelectedNodesAndInstances(msg.type);
 
-    // Check if there are selected nodes
-    if (selectedNodes.length === 0) {
-      figma.ui.postMessage({ type: 'error', message: 'No nodes selected.' });
-      return;
+      // Continue only if instances are defined
+      if (!instances) {
+        return;
+      }
+
+      let properties = instances.map(instance => getInstanceProperties(instance, {languageFrames, clonedInstances}));
+
+      console.log(`Properties: ${JSON.stringify(properties, null, 2)}`); // Debug message
+
+      let flattenedProperties = properties.flat();
+      try {
+        await updateFromFigma(flattenedProperties);
+      } catch (error) {
+        console.error(`Failed to handle 'update-from-figma' message: ${error.message}`);
+      }
+      break;
     }
+    case 'get-properties': {
+      // Reset the counter and blockCounter here
+      blockCounter = {};
 
-    // Find all instances inside each selected node
-    let instances = [];
-    for (let node of selectedNodes) {
-      instances = instances.concat(findAllInstances(node));
+      let instances = await handleSelectedNodesAndInstances(msg.type);
+
+      // Continue only if instances are defined
+      if (!instances) {
+        return;
+      }
+
+      languageFrames = cloneInstances(instances);
+
+      let properties = instances.map(instance => getInstanceProperties(instance, languageFrames));
+
+      figma.ui.postMessage({ type: 'properties', data: properties, languageFrames: languageFrames });
+
+      let flattenedProperties = properties.flat();
+      try {
+        await updateFromFigma(flattenedProperties);
+      } catch (error) {
+        console.error(`Failed to handle 'get-properties' message: ${error.message}`);
+      }
+
+      const postData = {
+        properties: flattenedProperties,
+      };
+
+      let postDataJson = JSON.stringify(postData);
+
+      console.log("Sending the following JSON data:");
+      console.log(postDataJson);
+      break;
     }
-    console.log(`Found ${instances.length} instances`); // Debug message
-
-    // Check if there are selected instances
-    if (instances.length === 0) {
-      figma.ui.postMessage({ type: 'error', message: 'No instances selected.' });
-      return;
+    default: {
+      console.log(`Unhandled message type: ${msg.type}`);
+      break;
     }
-
-    // // Recalculate languageFrames if necessary
-    // if (!languageFrames) {
-    //   ({languageFrames, clonedInstances} = cloneInstances(instances));
-    // }
-
-    let properties = instances.map(instance => getInstanceProperties(instance, {languageFrames, clonedInstances}));
-
-    console.log(`Properties: ${JSON.stringify(properties, null, 2)}`); // Debug message
-
-    // This is where you make the change
-    let flattenedProperties = properties.flat();
-    try {
-      // Update properties from Figma
-      await updateFromFigma(flattenedProperties);
-    } catch (error) {
-      console.error(`Failed to handle 'update-from-figma' message: ${error.message}`);
-    }
-
-  } else if (msg.type === 'get-properties') {
-    // Reset the counter and blockCounter here
-    blockCounter = {};
-
-    // Retrieve the currently selected nodes on the page
-    let selectedNodes = currentPage.selection;
-
-    // Check if there are selected nodes
-    if (selectedNodes.length === 0) {
-      figma.ui.postMessage({ type: 'error', message: 'No nodes selected.' });
-      return;
-    }
-
-    // Find all instances inside each selected node
-    let instances = [];
-    for (let node of selectedNodes) {
-      instances = instances.concat(findAllInstances(node));
-    }
-
-    // Check if there are selected instances
-    if (instances.length === 0) {
-      figma.ui.postMessage({ type: 'error', message: 'No instances selected.' });
-      return;
-    }
-
-    // Clone the instances for each language and get the frame id's
-    languageFrames = cloneInstances(instances);
-
-    // Retrieve the properties of these instances
-    let properties = instances.map(instance => getInstanceProperties(instance, languageFrames));
-
-    // Send the properties and frame id's back to the UI
-    figma.ui.postMessage({ type: 'properties', data: properties, languageFrames: languageFrames });
-
-    // This is where you make the second change
-    let flattenedProperties = properties.flat();
-    try {
-      // Update properties from Figma
-      await updateFromFigma(flattenedProperties);
-    } catch (error) {
-      console.error(`Failed to handle 'get-properties' message: ${error.message}`);
-    }
-
-    // Prepare the data for the POST request
-    const postData = {
-      properties: flattenedProperties,
-    };
-
-    // Convert your data to JSON
-    let postDataJson = JSON.stringify(postData);
-
-    // Log the JSON data
-    console.log("Sending the following JSON data:");
-    console.log(postDataJson);
   }
 };
